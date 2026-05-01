@@ -1,0 +1,1639 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Critical Path Almanac</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+<style>
+  html, body { background: #1A0F1A; }
+  body { margin: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react">
+// Critical Path Almanac
+// Workstreams and milestones
+const workstreams = {
+  'home-sale':  { name: 'Home Sale',       color: '#C8893D' },
+  'pet':        { name: 'Pet Relocation',  color: '#7BA68A' },
+  'travel':     { name: 'Travel',          color: '#A5658A' },
+  'programme':  { name: 'Programme',       color: '#8898C9' },
+  'visa':       { name: 'Visa & IRP',      color: '#C57878' },
+  'financial':  { name: 'Financial',       color: '#D4B570' }
+};
+
+const milestones = [
+  {
+    id: 'interior-photos',
+    date: '2026-05-11',
+    workstream: 'home-sale',
+    title: 'Interior Photography',
+    description: 'Bradley coordinates with the photographer. Every room must be staged, decluttered, and clean. This is the visual that drives the listing.',
+    prep: [
+      'Living room bathroom paint and caulk',
+      'Basement windows paint and caulk',
+      'Kitchen, dining room, sunroom walls painted',
+      'Entryway walls painted',
+      'Guest bedroom and closet painted',
+      'Primary walk-in closet painted',
+      'Spackle door jambs (4 replaced doors)',
+      'Touch-ups: trim, corners, switch plates, nail holes',
+      'Window coverings audit and replacements',
+      'Content audit (all rooms)',
+      'Donation run 1 (Goodwill or Salvation Army)',
+      'Dump run for non-donatables',
+      'Deep clean (windows, baseboards, fixtures)',
+      'Final stage for photography',
+      'Pet containment plan with Bradley'
+    ]
+  },
+  {
+    id: 'mls-live',
+    date: '2026-05-15',
+    workstream: 'home-sale',
+    title: 'MLS Listing Live',
+    description: 'Full MLS listing goes live. Online ad campaigns activate. Postcards distributed to renters, investors, and the neighbourhood.',
+    prep: [
+      'Photos delivered and reviewed',
+      'Listing copy reviewed and approved',
+      'Postcards approved by Bradley',
+      'Online ad campaigns set up'
+    ]
+  },
+  {
+    id: 'first-showings',
+    date: '2026-05-16',
+    workstream: 'home-sale',
+    title: 'First Showing Weekend',
+    description: 'Target 5 to 10 showings across 16 to 18 May. Pet containment active throughout.',
+    prep: [
+      'Pet containment plan finalised with Bradley',
+      'Out-of-house plan with all 3 pets',
+      'Staging reset checklist',
+      'Listing presentation review'
+    ]
+  },
+  {
+    id: 'cats-cert-window',
+    date: '2026-08-02',
+    workstream: 'pet',
+    title: 'Cats EU Health Cert Window Opens',
+    description: 'Rocki and Izzi must obtain EU Health Certificate from USDA-accredited vet, then USDA endorsement. Window opens 10 days before departure (12 August).',
+    prep: [
+      'Final vet appointment scheduled (within 10 days of departure)',
+      'Microchip numbers verified (Rocki 985141010659166, Izzi 982126051586083)',
+      'USDA endorsement plan (in-person or mail)',
+      'Originals to travel with pets, copies retained'
+    ]
+  },
+  {
+    id: 'last-day-home',
+    date: '2026-08-10',
+    workstream: 'home-sale',
+    title: 'Last Day in Home',
+    description: 'Keys handed over. Virginia chapter closes.',
+    prep: [
+      'Closing complete',
+      'Final clear-out done (donation run 2)',
+      'Family pickup coordination complete',
+      'Deep clean for buyer',
+      'Key handoff plan with Bradley'
+    ]
+  },
+  {
+    id: 'family-flight',
+    date: '2026-08-12',
+    workstream: 'travel',
+    title: 'Family Travel to Dublin',
+    description: 'Augustus, Kyle, Rocki, and Izzi fly KLM IAD to AMS to DUB. Kyle stays in Ireland from this date.',
+    prep: [
+      'SturdiBag Small carriers ready',
+      'EU Health Certs obtained and USDA endorsed',
+      'KLM cabin pet booking confirmed',
+      'Visa and IRP doc pack assembled (two complete sets each)',
+      'Brickfield A.42 lease signed (or bridge accommodation booked)',
+      '€10,000 each in separate accounts for visa proof of funds',
+      'Trinity €6,000 minimum tuition pre-paid'
+    ]
+  },
+  {
+    id: 'irp-clock',
+    date: '2026-08-12',
+    workstream: 'visa',
+    title: '90-Day IRP Clock Starts',
+    description: 'Both partners have 90 days from first entry to Ireland to complete IRP registration. Hard deadline approximately 10 November 2026.',
+    prep: [
+      'IRP appointment booking workflow understood',
+      'Sequence: register, bank account, 5 working days, registration letter (within 7 days), book IRP'
+    ]
+  },
+  {
+    id: 'marley-cert-window',
+    date: '2026-08-26',
+    workstream: 'pet',
+    title: 'Marley EU Health Cert Window Opens',
+    description: 'Marley must obtain EU Health Certificate and USDA endorsement before September Lufthansa Cargo flight via PenderAIR.',
+    prep: [
+      'Christina at PenderAIR coordination',
+      'Tapeworm treatment window confirmed (1 to 5 days before arrival)',
+      'Final vet appointment scheduled',
+      'USDA endorsement within 48 hours of vet certificate',
+      'Microchip number verified (985112005639797)'
+    ]
+  },
+  {
+    id: 'augustus-return',
+    date: '2026-08-26',
+    workstream: 'travel',
+    title: 'Augustus Returns Solo to US',
+    description: 'Augustus returns to close out final week at Microsoft. Kyle stays in Ireland with cats.',
+    prep: [
+      'Return flight booked',
+      'US accommodation plan',
+      'Kyle solo-with-cats handover'
+    ]
+  },
+  {
+    id: 'rsu-vest',
+    date: '2026-08-31',
+    workstream: 'financial',
+    title: 'RSU Vest',
+    description: 'Approximately $4,370 vests. Capture and account for the value.',
+    prep: [
+      'Brokerage settings reviewed',
+      'Tax accounting plan with expat CPA',
+      'Transfer plan to relocation funds'
+    ]
+  },
+  {
+    id: 'bonus',
+    date: '2026-09-01',
+    workstream: 'financial',
+    title: 'Microsoft Annual Bonus',
+    description: 'Annual bonus pays. Requires active employment on payout date. Validates 4 September departure timing.',
+    prep: [
+      'ESPP suspended before Q3 (verify)',
+      'Paystub records saved',
+      'Tax accounting plan with expat CPA'
+    ]
+  },
+  {
+    id: 'smart-start',
+    date: '2026-09-02',
+    workstream: 'programme',
+    title: 'Trinity Smart Start Week',
+    description: 'Pre-Freshers orientation week for postgraduate international students. Approximate dates 2 to 6 September.',
+    prep: [
+      'Smart Start details confirmed via tcd.ie/students/orientation/postgraduates',
+      'Accommodation timeline coordinates with Augustus on the ground',
+      'Pre-attendance tasks identified'
+    ]
+  },
+  {
+    id: 'last-day-microsoft',
+    date: '2026-09-03',
+    workstream: 'travel',
+    title: 'Last Day at Microsoft',
+    description: 'In-person Minneapolis event. Final working day after nearly 4 years.',
+    prep: [
+      'FPNB handoff complete (12-week transition guide)',
+      'Equipment return plan',
+      'Exit interview scheduled',
+      'Security badge and credentials return',
+      'Personal contacts and references saved offline'
+    ]
+  },
+  {
+    id: 'permanent-departure',
+    date: '2026-09-04',
+    workstream: 'travel',
+    title: 'Permanent Departure',
+    description: 'Aer Lingus EI 118 IAD to DUB. Departs 21:00, arrives 08:55 on 5 September. Throwaway return leg ignored.',
+    prep: [
+      'Nord Stage decision made (checked baggage or BLUEmove)',
+      'Final packing complete',
+      'Wells Fargo transfers staged',
+      'Mail forwarding active',
+      'Power of attorney executed',
+      'Utilities cancelled effective day after closing',
+      'Google Voice continuity confirmed'
+    ]
+  },
+  {
+    id: 'marley-flight',
+    date: '2026-09-05',
+    workstream: 'pet',
+    title: 'Marley Flies via Lufthansa Cargo',
+    description: 'Christina at PenderAIR coordinates Marley solo cargo flight to Dublin. Date approximate; certificate window 26 August to 3 September, flight follows.',
+    prep: [
+      'Lufthansa Cargo booking confirmed with Christina',
+      'Sky Kennel 28 crate prepared and labelled',
+      'Tapeworm treatment administered in correct window',
+      'Airport drop-off plan',
+      'Dublin pickup plan with Kyle'
+    ]
+  },
+  {
+    id: 'trinity-classes',
+    date: '2026-09-07',
+    workstream: 'programme',
+    title: 'Trinity Classes Begin',
+    description: 'Trinity Full-Time MBA classes begin. Augustus on Stamp 2 student permission.',
+    prep: [
+      'Trinity registration complete via my.tcd.ie',
+      'Student ID downloaded',
+      'Proof of Registration letter pulled (for IRP)',
+      'Tuition fully paid or on schedule'
+    ]
+  },
+  {
+    id: 'augustus-irp',
+    date: '2026-09-08',
+    workstream: 'visa',
+    title: 'Augustus IRP Appointment Window',
+    description: 'Target window 8 to 12 September. Permanent return on 5 September; allow time for bank account, statement, and registration letter.',
+    prep: [
+      'Trinity registration complete',
+      'Irish bank account opened (AIB or Bank of Ireland)',
+      '5 working days passed for first bank statement',
+      'Registration letter dated within 7 days of appointment',
+      '€300 fee ready (card only)',
+      'Full IRP doc pack assembled'
+    ]
+  },
+  {
+    id: 'maynooth-classes',
+    date: '2026-09-14',
+    workstream: 'programme',
+    title: 'Maynooth Classes Begin',
+    description: 'Kyle MSc classes begin. Kyle on Stamp 2 student permission.',
+    prep: [
+      'Maynooth registration complete',
+      'Kyle IRP completed or scheduled',
+      'GP registration in Drimnagh complete (for MS care referral)'
+    ]
+  },
+  {
+    id: 'irp-deadline',
+    date: '2026-11-10',
+    workstream: 'visa',
+    title: '90-Day IRP Hard Deadline',
+    description: 'Both partners must complete IRP registration by this date. Calculated as 90 days from 12 August arrival.',
+    prep: [
+      'Both IRP appointments completed',
+      'Both Stamp 2 stamps in passports',
+      'Both IRP cards received by post'
+    ]
+  }
+];
+
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+const STORAGE_KEY = 'critical-path-state-v1';
+
+const PALETTE = {
+  bg: '#1A0F1A',
+  surface: '#2D1F2D',
+  surfaceHi: '#3D2540',
+  border: '#4A3040',
+  text: '#F0E0C8',
+  textMuted: '#C0A890',
+  textDim: '#7A6B5C'
+};
+
+const GOLD = '#E5B470';
+const FONT_DISPLAY = "'Fraunces', 'Iowan Old Style', Georgia, serif";
+const FONT_BODY = "'Spectral', Georgia, serif";
+
+// --- Date helpers ---------------------------------------------------------
+const MS_PER_DAY = 86400000;
+
+function parseISODate(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function daysBetween(a, b) {
+  return Math.round((startOfDay(a) - startOfDay(b)) / MS_PER_DAY);
+}
+
+function formatLongDate(d) {
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatWeekday(d) {
+  return d.toLocaleDateString('en-GB', { weekday: 'long' });
+}
+
+function monthKey(d) {
+  return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+}
+
+// --- Storage --------------------------------------------------------------
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Almanac: load failed', e);
+  }
+  return {};
+}
+
+function saveState(state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
+  } catch (e) {
+    console.warn('Almanac: save failed', e);
+    return false;
+  }
+}
+
+// --- Google Fonts ---------------------------------------------------------
+function useGoogleFonts() {
+  useEffect(() => {
+    const links = [
+      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+      { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
+      { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap' }
+    ];
+    const els = links.map(({ rel, href, crossOrigin }) => {
+      const l = document.createElement('link');
+      l.rel = rel;
+      l.href = href;
+      if (crossOrigin) l.crossOrigin = crossOrigin;
+      document.head.appendChild(l);
+      return l;
+    });
+    return () => els.forEach(l => l.remove());
+  }, []);
+}
+
+// --- Visual primitives ----------------------------------------------------
+function WorkstreamPill({ workstream }) {
+  const ws = workstreams[workstream];
+  if (!ws) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full uppercase tracking-[0.18em] text-[11px] px-2 py-0.5"
+      style={{
+        fontFamily: FONT_BODY,
+        fontWeight: 500,
+        color: ws.color,
+        backgroundColor: ws.color + '1A',
+        border: `1px solid ${ws.color}40`,
+        letterSpacing: '0.18em'
+      }}
+    >
+      <span
+        className="inline-block w-1.5 h-1.5 rounded-full"
+        style={{ backgroundColor: ws.color, boxShadow: `0 0 6px ${ws.color}AA` }}
+      />
+      {ws.name}
+    </span>
+  );
+}
+
+function DaysPill({ days }) {
+  const label = days === 0 ? 'today' : days < 0 ? `${Math.abs(days)}d ago` : `in ${days}d`;
+  const tier = days < 0 ? 'past' : days <= 7 ? 'imminent' : days <= 14 ? 'soon' : 'future';
+  const styles = {
+    imminent: { color: '#1A0F1A',         bg: GOLD,           border: GOLD,                weight: 600 },
+    soon:     { color: GOLD,              bg: 'transparent',  border: GOLD + '80',         weight: 500 },
+    future:   { color: PALETTE.textMuted, bg: 'transparent',  border: PALETTE.border,      weight: 400 },
+    past:     { color: PALETTE.textDim,   bg: 'transparent',  border: PALETTE.border,      weight: 400 }
+  }[tier];
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-3 py-1 text-xs"
+      style={{
+        fontFamily: FONT_BODY,
+        fontVariantNumeric: 'tabular-nums',
+        letterSpacing: '0.04em',
+        color: styles.color,
+        backgroundColor: styles.bg,
+        border: `1px solid ${styles.border}`,
+        fontWeight: styles.weight
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function Checkbox({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className="relative shrink-0 transition-colors"
+      style={{
+        width: 18,
+        height: 18,
+        marginTop: 4,
+        borderRadius: 3,
+        border: `1px solid ${checked ? GOLD : PALETTE.border}`,
+        backgroundColor: checked ? GOLD + '22' : 'transparent'
+      }}
+      aria-pressed={checked}
+    >
+      {checked && (
+        <svg viewBox="0 0 16 16" width="14" height="14" style={{ position: 'absolute', top: 1, left: 1 }}>
+          <path d="M3 8.5 L6.5 12 L13 4.5" fill="none" stroke={GOLD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+function Chevron({ open }) {
+  return (
+    <svg
+      width="14" height="14" viewBox="0 0 16 16"
+      style={{
+        transition: 'transform 280ms cubic-bezier(.4,.1,.2,1)',
+        transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+        color: PALETTE.textDim
+      }}
+    >
+      <path d="M3 6 L8 11 L13 6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// --- Auto-height transition wrapper --------------------------------------
+function Collapse({ open, children }) {
+  const innerRef = useRef(null);
+  const [height, setHeight] = useState(open ? 'auto' : 0);
+  useEffect(() => {
+    if (!innerRef.current) return;
+    const h = innerRef.current.scrollHeight;
+    if (open) {
+      setHeight(h);
+      const t = setTimeout(() => setHeight('auto'), 360);
+      return () => clearTimeout(t);
+    } else {
+      setHeight(h);
+      requestAnimationFrame(() => requestAnimationFrame(() => setHeight(0)));
+    }
+  }, [open]);
+  return (
+    <div
+      style={{
+        height: typeof height === 'number' ? `${height}px` : height,
+        overflow: 'hidden',
+        transition: 'height 320ms cubic-bezier(.4,.1,.2,1)'
+      }}
+    >
+      <div ref={innerRef}>{children}</div>
+    </div>
+  );
+}
+
+// --- Milestone card -------------------------------------------------------
+function MilestoneCard({ milestone, today, state, onPatch, isPast, expandedDefault, featured }) {
+  const date = parseISODate(milestone.date);
+  const days = daysBetween(date, today);
+  const expanded = state?.expanded ?? expandedDefault ?? false;
+  const checked = state?.checked || [];
+  const notes = state?.notes || '';
+  const [notesOpen, setNotesOpen] = useState(!!notes);
+  const [hovered, setHovered] = useState(false);
+  useEffect(() => { if (notes) setNotesOpen(true); }, [notes]);
+  const completedCount = checked.length;
+  const totalCount = milestone.prep.length;
+  const ws = workstreams[milestone.workstream];
+
+  const toggle = () => onPatch({ expanded: !expanded });
+  const toggleCheck = (i) => {
+    const next = checked.includes(i) ? checked.filter(x => x !== i) : [...checked, i];
+    onPatch({ checked: next });
+  };
+
+  return (
+    <article
+      className="group relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        backgroundColor: featured ? PALETTE.surfaceHi : PALETTE.surface,
+        border: `1px solid ${expanded || hovered ? ws.color + '70' : (featured ? ws.color + '55' : PALETTE.border)}`,
+        borderRadius: 6,
+        opacity: isPast ? 0.45 : 1,
+        filter: isPast ? 'sepia(0.35) saturate(0.7)' : 'none',
+        transition: 'border-color 240ms ease, background-color 240ms ease, box-shadow 240ms ease',
+        boxShadow: hovered && !isPast ? `0 1px 0 ${ws.color}22, 0 6px 24px -16px ${ws.color}` : 'none'
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          left: 0, top: 0, bottom: 0,
+          width: 2,
+          backgroundColor: ws.color,
+          opacity: featured ? 0.85 : 0.55,
+          borderTopLeftRadius: 6,
+          borderBottomLeftRadius: 6
+        }}
+      />
+
+      <button
+        type="button"
+        onClick={toggle}
+        className="w-full text-left"
+        style={{ padding: '20px 22px 20px 26px' }}
+      >
+        <div className="flex items-start gap-5">
+          <div className="shrink-0" style={{ width: featured ? 92 : 78 }}>
+            <div
+              style={{
+                fontFamily: FONT_DISPLAY,
+                fontWeight: 400,
+                fontSize: featured ? 32 : 26,
+                lineHeight: 1,
+                fontVariantNumeric: 'tabular-nums',
+                color: PALETTE.text,
+                letterSpacing: '-0.01em'
+              }}
+            >
+              {date.getDate()}
+            </div>
+            <div
+              style={{
+                fontFamily: FONT_BODY,
+                fontSize: 11,
+                marginTop: 6,
+                textTransform: 'uppercase',
+                letterSpacing: '0.22em',
+                color: PALETTE.textDim
+              }}
+            >
+              {date.toLocaleDateString('en-GB', { month: 'short' })}
+            </div>
+            <div
+              style={{
+                fontFamily: FONT_BODY,
+                fontStyle: 'italic',
+                fontSize: 11,
+                marginTop: 4,
+                color: PALETTE.textDim
+              }}
+            >
+              {formatWeekday(date)}
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              <WorkstreamPill workstream={milestone.workstream} />
+              {totalCount > 0 && (
+                <span
+                  style={{
+                    fontFamily: FONT_BODY,
+                    fontSize: 11,
+                    fontVariantNumeric: 'tabular-nums',
+                    color: completedCount === totalCount ? GOLD : (completedCount > 0 ? PALETTE.textMuted : PALETTE.textDim),
+                    letterSpacing: '0.05em',
+                    fontStyle: completedCount === 0 ? 'italic' : 'normal'
+                  }}
+                >
+                  {completedCount === 0
+                    ? `${totalCount} prep ${totalCount === 1 ? 'item' : 'items'}`
+                    : completedCount === totalCount
+                      ? 'all prep complete'
+                      : `${completedCount} of ${totalCount} done`}
+                </span>
+              )}
+            </div>
+            <h3
+              style={{
+                fontFamily: FONT_DISPLAY,
+                fontWeight: 400,
+                fontSize: featured ? 24 : 20,
+                color: PALETTE.text,
+                lineHeight: 1.25,
+                letterSpacing: '-0.005em'
+              }}
+            >
+              {milestone.title}
+            </h3>
+            {featured && (
+              <p
+                style={{
+                  fontFamily: FONT_BODY,
+                  fontSize: 14,
+                  color: PALETTE.textMuted,
+                  marginTop: 8,
+                  lineHeight: 1.55,
+                  textWrap: 'pretty'
+                }}
+              >
+                {milestone.description}
+              </p>
+            )}
+
+            {featured && totalCount > 0 && (
+              <div
+                style={{
+                  marginTop: 14,
+                  height: 2,
+                  backgroundColor: PALETTE.border,
+                  borderRadius: 1,
+                  overflow: 'hidden'
+                }}
+              >
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${(completedCount / totalCount) * 100}%`,
+                    backgroundColor: GOLD,
+                    transition: 'width 400ms ease'
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 flex flex-col items-end gap-3">
+            <DaysPill days={days} />
+            <Chevron open={expanded} />
+          </div>
+        </div>
+      </button>
+
+      <Collapse open={expanded}>
+        <div
+          style={{
+            padding: '0 26px 22px 26px',
+            borderTop: `1px solid ${PALETTE.border}`,
+            marginTop: 0
+          }}
+        >
+          {!featured && (
+            <p
+              style={{
+                fontFamily: FONT_BODY,
+                fontSize: 14,
+                color: PALETTE.textMuted,
+                marginTop: 18,
+                lineHeight: 1.6,
+                textWrap: 'pretty'
+              }}
+            >
+              {milestone.description}
+            </p>
+          )}
+
+          {milestone.prep.length > 0 && (
+            <div style={{ marginTop: 18 }}>
+              <div
+                style={{
+                  fontFamily: FONT_BODY,
+                  fontSize: 11,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.22em',
+                  color: PALETTE.textDim,
+                  marginBottom: 10
+                }}
+              >
+                Preparation
+              </div>
+              <ul className="flex flex-col gap-2">
+                {milestone.prep.map((item, i) => {
+                  const isChecked = checked.includes(i);
+                  return (
+                    <li key={i} className="flex items-start gap-3">
+                      <Checkbox checked={isChecked} onChange={() => toggleCheck(i)} />
+                      <span
+                        style={{
+                          fontFamily: FONT_BODY,
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          color: isChecked ? PALETTE.textDim : PALETTE.text,
+                          textDecoration: isChecked ? 'line-through' : 'none',
+                          textDecorationColor: PALETTE.textDim,
+                          textWrap: 'pretty'
+                        }}
+                      >
+                        {item}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          <div style={{ marginTop: 20 }}>
+            <div
+              style={{
+                fontFamily: FONT_BODY,
+                fontSize: 11,
+                textTransform: 'uppercase',
+                letterSpacing: '0.22em',
+                color: PALETTE.textDim,
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <span>Notes</span>
+              {!notes && !notesOpen && (
+                <button
+                  type="button"
+                  onClick={() => setNotesOpen(true)}
+                  style={{
+                    fontFamily: FONT_BODY,
+                    fontSize: 11,
+                    fontStyle: 'italic',
+                    textTransform: 'none',
+                    letterSpacing: '0.04em',
+                    color: GOLD,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                >
+                  + add a note
+                </button>
+              )}
+            </div>
+            {(notes || notesOpen) && (
+              <textarea
+                value={notes}
+                onChange={(e) => onPatch({ notes: e.target.value })}
+                placeholder="Marginalia, observations, telephone numbers."
+                rows={3}
+                autoFocus={notesOpen && !notes}
+                style={{
+                  width: '100%',
+                  fontFamily: FONT_BODY,
+                  fontSize: 14,
+                  lineHeight: 1.55,
+                  color: PALETTE.text,
+                  backgroundColor: 'rgba(26, 15, 26, 0.5)',
+                  border: `1px solid ${PALETTE.border}`,
+                  borderRadius: 4,
+                  padding: '10px 12px',
+                  outline: 'none',
+                  resize: 'vertical'
+                }}
+                onFocus={(e) => e.target.style.borderColor = GOLD + '80'}
+                onBlur={(e) => {
+                  e.target.style.borderColor = PALETTE.border;
+                  if (!e.target.value) setNotesOpen(false);
+                }}
+              />
+            )}
+          </div>
+        </div>
+      </Collapse>
+    </article>
+  );
+}
+
+// --- Countdown counter ----------------------------------------------------
+function Countdown({ label, anchor, today, sublabel }) {
+  const target = parseISODate(anchor);
+  const days = daysBetween(target, today);
+  const sign = days < 0 ? 'past' : days === 0 ? 'today' : 'days';
+  return (
+    <div
+      style={{
+        backgroundColor: PALETTE.surface,
+        border: `1px solid ${PALETTE.border}`,
+        borderRadius: 6,
+        padding: '24px 28px',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
+      <svg
+        aria-hidden
+        width="60" height="60" viewBox="0 0 60 60"
+        style={{ position: 'absolute', top: 12, right: 12, opacity: 0.18 }}
+      >
+        <circle cx="30" cy="30" r="22" fill="none" stroke={GOLD} strokeWidth="0.5" />
+        <circle cx="30" cy="30" r="14" fill="none" stroke={GOLD} strokeWidth="0.5" />
+        <circle cx="30" cy="30" r="2" fill={GOLD} />
+        <line x1="30" y1="2" x2="30" y2="58" stroke={GOLD} strokeWidth="0.3" />
+        <line x1="2" y1="30" x2="58" y2="30" stroke={GOLD} strokeWidth="0.3" />
+      </svg>
+
+      <div
+        style={{
+          fontFamily: FONT_BODY,
+          fontSize: 11,
+          textTransform: 'uppercase',
+          letterSpacing: '0.28em',
+          color: PALETTE.textDim
+        }}
+      >
+        {label}
+      </div>
+      <div className="flex items-baseline gap-3 mt-3">
+        <span
+          style={{
+            fontFamily: FONT_DISPLAY,
+            fontWeight: 300,
+            fontSize: 84,
+            lineHeight: 0.95,
+            color: GOLD,
+            fontVariantNumeric: 'tabular-nums',
+            letterSpacing: '-0.03em'
+          }}
+        >
+          {days < 0 ? Math.abs(days) : days}
+        </span>
+        <span
+          style={{
+            fontFamily: FONT_BODY,
+            fontStyle: 'italic',
+            fontSize: 18,
+            color: PALETTE.textMuted
+          }}
+        >
+          {sign}
+        </span>
+      </div>
+      <div
+        style={{
+          fontFamily: FONT_BODY,
+          fontSize: 13,
+          color: PALETTE.textMuted,
+          marginTop: 10,
+          fontStyle: 'italic'
+        }}
+      >
+        {sublabel}
+      </div>
+    </div>
+  );
+}
+
+// --- Today marker ---------------------------------------------------------
+function TodayMarker({ nextLabel, nextDays }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        padding: '12px 0',
+        margin: '8px 0'
+      }}
+    >
+      <div
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          backgroundColor: GOLD,
+          boxShadow: `0 0 12px ${GOLD}, 0 0 24px ${GOLD}88`,
+          animation: 'almanac-pulse 2.6s ease-in-out infinite'
+        }}
+      />
+      <span
+        style={{
+          fontFamily: FONT_DISPLAY,
+          fontStyle: 'italic',
+          fontSize: 13,
+          color: GOLD,
+          letterSpacing: '0.05em'
+        }}
+      >
+        you are here
+      </span>
+      <div
+        style={{
+          flex: 1,
+          height: 1,
+          background: `linear-gradient(to right, ${GOLD}, ${GOLD}33 40%, transparent)`,
+          boxShadow: `0 0 8px ${GOLD}55`
+        }}
+      />
+      {nextLabel && (
+        <span
+          style={{
+            fontFamily: FONT_BODY,
+            fontStyle: 'italic',
+            fontSize: 12,
+            color: PALETTE.textMuted,
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          next: {nextLabel}, in {nextDays}d
+        </span>
+      )}
+    </div>
+  );
+}
+
+// --- Stagger reveal -------------------------------------------------------
+function Reveal({ index, children, delay = 50 }) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShown(true), index * delay + 80);
+    return () => clearTimeout(t);
+  }, [index, delay]);
+  return (
+    <div
+      style={{
+        opacity: shown ? 1 : 0,
+        transform: shown ? 'translateY(0)' : 'translateY(8px)',
+        transition: 'opacity 520ms ease, transform 520ms cubic-bezier(.2,.7,.2,1)'
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// --- Starfield decoration -------------------------------------------------
+function Starfield() {
+  const stars = useMemo(() => {
+    const arr = [];
+    let s = 1337;
+    for (let i = 0; i < 90; i++) {
+      s = (s * 9301 + 49297) % 233280;
+      const x = (s / 233280) * 100;
+      s = (s * 9301 + 49297) % 233280;
+      const y = (s / 233280) * 100;
+      s = (s * 9301 + 49297) % 233280;
+      const r = 0.4 + (s / 233280) * 1.2;
+      s = (s * 9301 + 49297) % 233280;
+      const o = 0.15 + (s / 233280) * 0.5;
+      arr.push({ x, y, r, o });
+    }
+    return arr;
+  }, []);
+  return (
+    <svg
+      aria-hidden
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 0,
+        opacity: 0.55
+      }}
+    >
+      {stars.map((s, i) => (
+        <circle
+          key={i}
+          cx={`${s.x}%`}
+          cy={`${s.y}%`}
+          r={s.r}
+          fill="#F0E0C8"
+          opacity={s.o}
+        />
+      ))}
+    </svg>
+  );
+}
+
+// --- Section primitives ---------------------------------------------------
+function SectionHeader({ title, subtitle }) {
+  return (
+    <div>
+      <div className="flex items-baseline gap-4">
+        <h2
+          style={{
+            fontFamily: FONT_DISPLAY,
+            fontWeight: 300,
+            fontSize: 32,
+            color: PALETTE.text,
+            letterSpacing: '-0.01em',
+            lineHeight: 1
+          }}
+        >
+          {title}
+        </h2>
+        <div
+          aria-hidden
+          style={{
+            flex: 1,
+            height: 1,
+            background: `linear-gradient(to right, ${PALETTE.border}, transparent)`
+          }}
+        />
+      </div>
+      {subtitle && (
+        <div
+          style={{
+            fontFamily: FONT_BODY,
+            fontStyle: 'italic',
+            fontSize: 13,
+            color: PALETTE.textDim,
+            marginTop: 6,
+            letterSpacing: '0.02em'
+          }}
+        >
+          {subtitle}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MonthDivider({ label }) {
+  return (
+    <div className="flex items-center gap-4">
+      <h3
+        style={{
+          fontFamily: FONT_DISPLAY,
+          fontStyle: 'italic',
+          fontWeight: 300,
+          fontSize: 22,
+          color: PALETTE.textMuted,
+          letterSpacing: '0.01em'
+        }}
+      >
+        {label}
+      </h3>
+      <div
+        aria-hidden
+        style={{
+          flex: 1,
+          height: 1,
+          background: `linear-gradient(to right, ${PALETTE.border}40, transparent)`
+        }}
+      />
+    </div>
+  );
+}
+
+function ProgressLine({ completed, total }) {
+  const pct = total === 0 ? 0 : (completed / total) * 100;
+  return (
+    <div
+      style={{
+        backgroundColor: PALETTE.surface,
+        border: `1px solid ${PALETTE.border}`,
+        borderRadius: 6,
+        padding: '14px 18px',
+        marginBottom: 14
+      }}
+    >
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <div
+          style={{
+            fontFamily: FONT_BODY,
+            fontSize: 12,
+            color: PALETTE.textMuted,
+            letterSpacing: '0.05em'
+          }}
+        >
+          <span style={{ color: GOLD, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{completed}</span>
+          <span style={{ color: PALETTE.textDim }}> of </span>
+          <span style={{ color: PALETTE.text, fontVariantNumeric: 'tabular-nums' }}>{total}</span>
+          <span style={{ color: PALETTE.textDim }}> prep items complete across the journey</span>
+        </div>
+        <div
+          style={{
+            fontFamily: FONT_DISPLAY,
+            fontStyle: 'italic',
+            fontSize: 13,
+            color: GOLD,
+            fontVariantNumeric: 'tabular-nums'
+          }}
+        >
+          {Math.round(pct)}%
+        </div>
+      </div>
+      <div
+        style={{
+          marginTop: 10,
+          height: 2,
+          backgroundColor: PALETTE.border,
+          borderRadius: 1,
+          overflow: 'hidden'
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${pct}%`,
+            backgroundColor: GOLD,
+            transition: 'width 500ms cubic-bezier(.4,.1,.2,1)',
+            boxShadow: `0 0 8px ${GOLD}88`
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function WorkstreamFilters({ filter, onToggle, onClear }) {
+  const entries = Object.entries(workstreams);
+  const active = filter.size > 0;
+  return (
+    <div className="flex items-center gap-2 flex-wrap" style={{ marginTop: 6 }}>
+      <span
+        style={{
+          fontFamily: FONT_BODY,
+          fontSize: 11,
+          textTransform: 'uppercase',
+          letterSpacing: '0.22em',
+          color: PALETTE.textDim,
+          marginRight: 4
+        }}
+      >
+        Filter
+      </span>
+      {entries.map(([key, ws]) => {
+        const on = filter.has(key);
+        const dim = active && !on;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onToggle(key)}
+            className="inline-flex items-center gap-1.5 rounded-full transition-all"
+            style={{
+              fontFamily: FONT_BODY,
+              fontSize: 11,
+              padding: '4px 10px',
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: dim ? PALETTE.textDim : ws.color,
+              backgroundColor: on ? ws.color + '26' : 'transparent',
+              border: `1px solid ${on ? ws.color : (dim ? PALETTE.border : ws.color + '50')}`,
+              opacity: dim ? 0.5 : 1,
+              cursor: 'pointer'
+            }}
+          >
+            <span
+              style={{
+                width: 6, height: 6, borderRadius: '50%',
+                backgroundColor: ws.color,
+                boxShadow: on ? `0 0 6px ${ws.color}` : 'none'
+              }}
+            />
+            {ws.name}
+          </button>
+        );
+      })}
+      {active && (
+        <button
+          type="button"
+          onClick={onClear}
+          style={{
+            fontFamily: FONT_BODY,
+            fontStyle: 'italic',
+            fontSize: 11,
+            color: GOLD,
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            marginLeft: 4
+          }}
+        >
+          clear
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MonthRail({ months, onJump }) {
+  return (
+    <div
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 5,
+        marginTop: 18,
+        marginBottom: 6,
+        padding: '10px 0',
+        backgroundColor: 'rgba(26, 15, 26, 0.85)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        borderBottom: `1px solid ${PALETTE.border}`
+      }}
+    >
+      <div className="flex items-center gap-2 flex-wrap">
+        <span
+          style={{
+            fontFamily: FONT_BODY,
+            fontSize: 11,
+            textTransform: 'uppercase',
+            letterSpacing: '0.22em',
+            color: PALETTE.textDim,
+            marginRight: 4
+          }}
+        >
+          Jump
+        </span>
+        {months.map(m => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onJump(m)}
+            style={{
+              fontFamily: FONT_DISPLAY,
+              fontStyle: 'italic',
+              fontSize: 13,
+              color: PALETTE.textMuted,
+              background: 'transparent',
+              border: `1px solid ${PALETTE.border}`,
+              borderRadius: 999,
+              padding: '3px 12px',
+              cursor: 'pointer',
+              transition: 'color 200ms, border-color 200ms'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = GOLD; e.currentTarget.style.borderColor = GOLD + '80'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = PALETTE.textMuted; e.currentTarget.style.borderColor = PALETTE.border; }}
+          >
+            {m.replace(' 2026', '').replace(' 2027', " '27")}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- Main app -------------------------------------------------------------
+function App() {
+  useGoogleFonts();
+
+  const [persisted, setPersisted] = useState({});
+  const [loaded, setLoaded] = useState(false);
+  const [savingPulse, setSavingPulse] = useState(false);
+  const saveTimer = useRef(null);
+
+  const today = useMemo(() => startOfDay(new Date()), []);
+
+  useEffect(() => {
+    setPersisted(loadState() || {});
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      setSavingPulse(true);
+      saveState(persisted);
+      setTimeout(() => setSavingPulse(false), 600);
+    }, 280);
+    return () => saveTimer.current && clearTimeout(saveTimer.current);
+  }, [persisted, loaded]);
+
+  const patchMilestone = useCallback((id, patch) => {
+    setPersisted(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), ...patch }
+    }));
+  }, []);
+
+  const sorted = useMemo(() =>
+    [...milestones].sort((a, b) => parseISODate(a.date) - parseISODate(b.date))
+  , []);
+
+  const upcoming = useMemo(() =>
+    sorted.filter(m => daysBetween(parseISODate(m.date), today) >= 0)
+  , [sorted, today]);
+
+  const [filter, setFilter] = useState(() => new Set());
+  const toggleFilter = (key) => {
+    setFilter(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+  const clearFilter = () => setFilter(new Set());
+  const passesFilter = (m) => filter.size === 0 || filter.has(m.workstream);
+
+  const nextThree = upcoming.filter(passesFilter).slice(0, 3);
+  const nextThreeIds = new Set(nextThree.map(m => m.id));
+
+  const totalPrep = useMemo(() => milestones.reduce((acc, m) => acc + m.prep.length, 0), []);
+  const completedPrep = useMemo(() => {
+    let n = 0;
+    for (const m of milestones) {
+      const ck = persisted[m.id]?.checked || [];
+      n += ck.filter(i => i < m.prep.length).length;
+    }
+    return n;
+  }, [persisted]);
+
+  const fullList = sorted
+    .filter(m => !nextThreeIds.has(m.id))
+    .filter(passesFilter);
+  const grouped = useMemo(() => {
+    const groups = [];
+    let currentKey = null;
+    let currentItems = null;
+    let todayInserted = false;
+    for (const m of fullList) {
+      const d = parseISODate(m.date);
+      const key = monthKey(d);
+      if (key !== currentKey) {
+        currentKey = key;
+        currentItems = { key, items: [] };
+        groups.push(currentItems);
+      }
+      const days = daysBetween(d, today);
+      if (!todayInserted && days >= 0) {
+        currentItems.items.push({ kind: 'today' });
+        todayInserted = true;
+      }
+      currentItems.items.push({ kind: 'milestone', milestone: m, days, isPast: days < 0 });
+    }
+    if (!todayInserted && groups.length) {
+      groups[groups.length - 1].items.push({ kind: 'today' });
+    }
+    return groups;
+  }, [fullList, today]);
+
+  const dublinAnchor = '2026-08-12';
+  const permanentAnchor = '2026-09-04';
+
+  const nextMilestone = upcoming[0];
+  const nextMilestoneDays = nextMilestone ? daysBetween(parseISODate(nextMilestone.date), today) : null;
+
+  const monthAnchors = useMemo(() => grouped.map(g => g.key), [grouped]);
+  const scrollToMonth = (key) => {
+    const el = document.querySelector(`[data-month-anchor="${CSS.escape(key)}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        backgroundColor: PALETTE.bg,
+        color: PALETTE.text,
+        fontFamily: FONT_BODY,
+        position: 'relative'
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          position: 'fixed',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 0,
+          background: `
+            radial-gradient(ellipse at 20% -10%, rgba(165, 101, 138, 0.18), transparent 55%),
+            radial-gradient(ellipse at 100% 100%, rgba(229, 180, 112, 0.08), transparent 55%),
+            radial-gradient(ellipse at 50% 50%, rgba(26, 15, 26, 0) 0%, rgba(10, 6, 10, 0.5) 100%)
+          `
+        }}
+      />
+      <Starfield />
+
+      <div className="relative" style={{ zIndex: 1, maxWidth: 920, margin: '0 auto', padding: '56px 28px 96px' }}>
+
+        <div
+          style={{
+            position: 'fixed',
+            top: 18,
+            right: 22,
+            fontFamily: FONT_BODY,
+            fontStyle: 'italic',
+            fontSize: 11,
+            color: GOLD,
+            opacity: savingPulse ? 0.9 : 0,
+            transition: 'opacity 360ms ease',
+            letterSpacing: '0.1em',
+            zIndex: 50,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
+          }}
+        >
+          <span
+            style={{
+              width: 5, height: 5, borderRadius: '50%',
+              backgroundColor: GOLD,
+              boxShadow: `0 0 8px ${GOLD}`
+            }}
+          />
+          saving
+        </div>
+
+        <Reveal index={0}>
+          <header style={{ marginBottom: 56 }}>
+            <div
+              style={{
+                fontFamily: FONT_BODY,
+                fontStyle: 'italic',
+                fontSize: 13,
+                color: PALETTE.textMuted,
+                letterSpacing: '0.04em',
+                marginBottom: 14
+              }}
+            >
+              {formatLongDate(today)}
+            </div>
+            <h1
+              style={{
+                fontFamily: FONT_DISPLAY,
+                fontWeight: 300,
+                fontSize: 'clamp(40px, 6vw, 64px)',
+                lineHeight: 1.02,
+                letterSpacing: '-0.02em',
+                color: PALETTE.text,
+                marginBottom: 8
+              }}
+            >
+              Critical Path <em style={{ fontWeight: 300, fontStyle: 'italic', color: GOLD }}>Almanac</em>
+            </h1>
+            <div
+              style={{
+                fontFamily: FONT_BODY,
+                fontStyle: 'italic',
+                fontSize: 14,
+                color: PALETTE.textDim,
+                marginBottom: 36,
+                letterSpacing: '0.02em'
+              }}
+            >
+              A crossing from Virginia to Ireland, charted by date.
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: 18
+              }}
+            >
+              <Countdown
+                label="Days to Dublin"
+                anchor={dublinAnchor}
+                today={today}
+                sublabel="Family travel, 12 August 2026"
+              />
+              <Countdown
+                label="Days to Permanent Departure"
+                anchor={permanentAnchor}
+                today={today}
+                sublabel="Aer Lingus EI 118, 4 September 2026"
+              />
+            </div>
+          </header>
+        </Reveal>
+
+        <Reveal index={1}>
+          <section style={{ marginBottom: 40 }}>
+            <ProgressLine completed={completedPrep} total={totalPrep} />
+            <WorkstreamFilters
+              filter={filter}
+              onToggle={toggleFilter}
+              onClear={clearFilter}
+            />
+          </section>
+        </Reveal>
+
+        {nextThree.length > 0 && (
+          <Reveal index={2}>
+            <section style={{ marginBottom: 64 }}>
+              <SectionHeader
+                title="Next up"
+                subtitle={filter.size > 0 ? 'The nearest milestones in your selected workstreams.' : 'The three milestones nearest at hand.'}
+              />
+              <div className="flex flex-col gap-3" style={{ marginTop: 20 }}>
+                {nextThree.map((m, i) => (
+                  <Reveal key={m.id} index={i + 3}>
+                    <MilestoneCard
+                      milestone={m}
+                      today={today}
+                      state={persisted[m.id]}
+                      onPatch={(p) => patchMilestone(m.id, p)}
+                      isPast={false}
+                      expandedDefault={i === 0}
+                      featured={true}
+                    />
+                  </Reveal>
+                ))}
+              </div>
+            </section>
+          </Reveal>
+        )}
+
+        <Reveal index={6}>
+          <section>
+            <SectionHeader
+              title="The full crossing"
+              subtitle={
+                filter.size > 0
+                  ? `Filtered to ${filter.size} workstream${filter.size === 1 ? '' : 's'}, in order, grouped by month.`
+                  : 'Every milestone, in order, grouped by month.'
+              }
+            />
+
+            {monthAnchors.length > 1 && (
+              <MonthRail months={monthAnchors} onJump={scrollToMonth} />
+            )}
+
+            <div style={{ marginTop: 24 }}>
+              {grouped.length === 0 && (
+                <div
+                  style={{
+                    fontFamily: FONT_BODY,
+                    fontStyle: 'italic',
+                    color: PALETTE.textDim,
+                    textAlign: 'center',
+                    padding: '40px 20px',
+                    border: `1px dashed ${PALETTE.border}`,
+                    borderRadius: 6
+                  }}
+                >
+                  No milestones match the current filter.
+                </div>
+              )}
+              {grouped.map((group, gi) => (
+                <div key={group.key} data-month-anchor={group.key} style={{ marginBottom: 36, scrollMarginTop: 24 }}>
+                  <MonthDivider label={group.key} />
+                  <div className="flex flex-col gap-2.5" style={{ marginTop: 16 }}>
+                    {group.items.map((it, ii) => {
+                      if (it.kind === 'today') {
+                        return (
+                          <TodayMarker
+                            key={`today-${gi}`}
+                            nextLabel={nextMilestone?.title}
+                            nextDays={nextMilestoneDays}
+                          />
+                        );
+                      }
+                      const m = it.milestone;
+                      return (
+                        <MilestoneCard
+                          key={m.id}
+                          milestone={m}
+                          today={today}
+                          state={persisted[m.id]}
+                          onPatch={(p) => patchMilestone(m.id, p)}
+                          isPast={it.isPast}
+                          featured={false}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </Reveal>
+
+        <Reveal index={7}>
+          <div
+            style={{
+              marginTop: 80,
+              textAlign: 'center',
+              fontFamily: FONT_DISPLAY,
+              fontStyle: 'italic',
+              fontSize: 13,
+              color: PALETTE.textDim,
+              letterSpacing: '0.08em'
+            }}
+          >
+            <div style={{ fontSize: 18, marginBottom: 10, color: PALETTE.textMuted }}>✦</div>
+            fair winds, gentle landings.
+          </div>
+        </Reveal>
+      </div>
+
+      <style>{`
+        @keyframes almanac-pulse {
+          0%, 100% { opacity: 0.85; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.18); }
+        }
+        ::selection { background: ${GOLD}55; color: ${PALETTE.text}; }
+        textarea::placeholder { color: ${PALETTE.textDim}; font-style: italic; }
+        body { background: ${PALETTE.bg}; }
+      `}</style>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
