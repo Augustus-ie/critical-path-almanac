@@ -7,6 +7,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
 <style>
   html, body { background: #1A0F1A; }
@@ -17,8 +18,20 @@
 <div id="root"></div>
 
 <script type="text/babel" data-presets="env,react">
+// ============================================================================
 // Critical Path Almanac
-// Workstreams and milestones
+// ============================================================================
+
+// --- Supabase config ------------------------------------------------------
+const SUPABASE_URL = 'https://ibhegkcumddicpdggzzc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImliaGVna2N1bWRkaWNwZGdnenpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2NjYxODIsImV4cCI6MjA5MzI0MjE4Mn0.9GrV8zK_eJ7ruZjJ_668HnV1AHoWXW_Zksk0sOUiQ0c';
+const ALMANAC_ID = '00000000-0000-0000-0000-000000000001';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true }
+});
+
+// --- Workstreams + milestones --------------------------------------------
 const workstreams = {
   'home-sale':  { name: 'Home Sale',       color: '#C8893D' },
   'pet':        { name: 'Pet Relocation',  color: '#7BA68A' },
@@ -295,8 +308,7 @@ const milestones = [
 
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-const STORAGE_KEY = 'critical-path-state-v1';
-
+// --- Palette + fonts ------------------------------------------------------
 const PALETTE = {
   bg: '#1A0F1A',
   surface: '#2D1F2D',
@@ -310,6 +322,9 @@ const PALETTE = {
 const GOLD = '#E5B470';
 const FONT_DISPLAY = "'Fraunces', 'Iowan Old Style', Georgia, serif";
 const FONT_BODY = "'Spectral', Georgia, serif";
+
+const LOCAL_STORAGE_KEY = 'critical-path-state-v1';
+const LOCAL_STORAGE_MIGRATED_KEY = 'critical-path-state-v1-migrated';
 
 // --- Date helpers ---------------------------------------------------------
 const MS_PER_DAY = 86400000;
@@ -341,27 +356,6 @@ function monthKey(d) {
   return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
-// --- Storage --------------------------------------------------------------
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.warn('Almanac: load failed', e);
-  }
-  return {};
-}
-
-function saveState(state) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    return true;
-  } catch (e) {
-    console.warn('Almanac: save failed', e);
-    return false;
-  }
-}
-
 // --- Google Fonts ---------------------------------------------------------
 function useGoogleFonts() {
   useEffect(() => {
@@ -380,6 +374,241 @@ function useGoogleFonts() {
     });
     return () => els.forEach(l => l.remove());
   }, []);
+}
+
+// --- Auth -----------------------------------------------------------------
+function useAuth() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    sb.auth.getSession().then(({ data }) => {
+      if (!alive) return;
+      setSession(data.session);
+      setLoading(false);
+    });
+    const { data: sub } = sb.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+    return () => { alive = false; sub.subscription.unsubscribe(); };
+  }, []);
+
+  return { session, loading };
+}
+
+// --- Supabase-backed almanac state ---------------------------------------
+function useAlmanacState(session) {
+  const [state, setState] = useState({});
+  const [loaded, setLoaded] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('loading');
+  const editingNotesRef = useRef(null);
+  const notesDebounceRef = useRef({});
+
+  // Initial load + migration
+  useEffect(() => {
+    if (!session) return;
+    let alive = true;
+    setLoaded(false);
+    setSyncStatus('loading');
+
+    (async () => {
+      try {
+        const [checksRes, notesRes] = await Promise.all([
+          sb.from('milestone_check').select('milestone_id, prep_index').eq('almanac_id', ALMANAC_ID),
+          sb.from('milestone_notes').select('milestone_id, notes').eq('almanac_id', ALMANAC_ID)
+        ]);
+        if (!alive) return;
+        if (checksRes.error) throw checksRes.error;
+        if (notesRes.error) throw notesRes.error;
+
+        const next = {};
+        for (const r of checksRes.data || []) {
+          if (!next[r.milestone_id]) next[r.milestone_id] = { checked: [], notes: '' };
+          next[r.milestone_id].checked.push(r.prep_index);
+        }
+        for (const r of notesRes.data || []) {
+          if (!next[r.milestone_id]) next[r.milestone_id] = { checked: [], notes: '' };
+          next[r.milestone_id].notes = r.notes || '';
+        }
+
+        // Migrate localStorage if Supabase is empty and we have local data
+        const supabaseEmpty = !(checksRes.data || []).length && !(notesRes.data || []).length;
+        if (supabaseEmpty) {
+          try {
+            const local = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (local) {
+              const parsed = JSON.parse(local);
+              const checkInserts = [];
+              const notesUpserts = [];
+              for (const [mId, s] of Object.entries(parsed)) {
+                const checked = Array.isArray(s.checked) ? s.checked : [];
+                for (const i of checked) {
+                  checkInserts.push({ almanac_id: ALMANAC_ID, milestone_id: mId, prep_index: i, checked_by: session.user.id });
+                }
+                if (s.notes) {
+                  notesUpserts.push({ almanac_id: ALMANAC_ID, milestone_id: mId, notes: s.notes, updated_by: session.user.id });
+                }
+                next[mId] = { checked, notes: s.notes || '' };
+              }
+              if (checkInserts.length) {
+                const { error } = await sb.from('milestone_check').insert(checkInserts);
+                if (error) console.warn('Migration insert checks failed', error);
+              }
+              if (notesUpserts.length) {
+                const { error } = await sb.from('milestone_notes').upsert(notesUpserts);
+                if (error) console.warn('Migration upsert notes failed', error);
+              }
+              localStorage.setItem(LOCAL_STORAGE_MIGRATED_KEY, local);
+              localStorage.removeItem(LOCAL_STORAGE_KEY);
+            }
+          } catch (e) {
+            console.warn('Migration failed', e);
+          }
+        }
+
+        if (!alive) return;
+        setState(next);
+        setLoaded(true);
+        setSyncStatus('synced');
+      } catch (e) {
+        console.error('Initial load failed', e);
+        if (alive) {
+          setLoaded(true);
+          setSyncStatus('error');
+        }
+      }
+    })();
+
+    return () => { alive = false; };
+  }, [session?.user?.id]);
+
+  // Realtime subscriptions
+  useEffect(() => {
+    if (!session) return;
+
+    const checkChannel = sb
+      .channel('milestone_check_realtime')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'milestone_check', filter: `almanac_id=eq.${ALMANAC_ID}` },
+        (payload) => {
+          setState(prev => {
+            const next = { ...prev };
+            if (payload.eventType === 'INSERT') {
+              const row = payload.new;
+              const ms = next[row.milestone_id] || { checked: [], notes: '' };
+              if (!ms.checked.includes(row.prep_index)) {
+                next[row.milestone_id] = { ...ms, checked: [...ms.checked, row.prep_index] };
+              }
+            } else if (payload.eventType === 'DELETE') {
+              const row = payload.old;
+              const ms = next[row.milestone_id];
+              if (ms) {
+                next[row.milestone_id] = { ...ms, checked: ms.checked.filter(x => x !== row.prep_index) };
+              }
+            }
+            return next;
+          });
+        }
+      )
+      .subscribe();
+
+    const notesChannel = sb
+      .channel('milestone_notes_realtime')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'milestone_notes', filter: `almanac_id=eq.${ALMANAC_ID}` },
+        (payload) => {
+          const row = payload.new || payload.old;
+          if (!row) return;
+          // Skip if this user is currently editing these notes
+          if (editingNotesRef.current === row.milestone_id) return;
+          setState(prev => {
+            const ms = prev[row.milestone_id] || { checked: [], notes: '' };
+            const newNotes = payload.eventType === 'DELETE' ? '' : (payload.new.notes || '');
+            if (ms.notes === newNotes) return prev;
+            return { ...prev, [row.milestone_id]: { ...ms, notes: newNotes } };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(checkChannel);
+      sb.removeChannel(notesChannel);
+    };
+  }, [session?.user?.id]);
+
+  const toggleCheck = useCallback(async (milestoneId, prepIndex) => {
+    const current = state[milestoneId]?.checked || [];
+    const isChecked = current.includes(prepIndex);
+
+    setState(prev => {
+      const ms = prev[milestoneId] || { checked: [], notes: '' };
+      const newChecked = isChecked
+        ? ms.checked.filter(x => x !== prepIndex)
+        : [...ms.checked, prepIndex];
+      return { ...prev, [milestoneId]: { ...ms, checked: newChecked } };
+    });
+
+    setSyncStatus('syncing');
+    try {
+      if (isChecked) {
+        const { error } = await sb.from('milestone_check').delete().match({
+          almanac_id: ALMANAC_ID,
+          milestone_id: milestoneId,
+          prep_index: prepIndex
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from('milestone_check').insert({
+          almanac_id: ALMANAC_ID,
+          milestone_id: milestoneId,
+          prep_index: prepIndex,
+          checked_by: session.user.id
+        });
+        // Ignore unique-violation errors (race condition: someone else inserted it)
+        if (error && error.code !== '23505') throw error;
+      }
+      setSyncStatus('synced');
+    } catch (e) {
+      console.warn('Toggle check sync failed', e);
+      setSyncStatus('error');
+    }
+  }, [state, session]);
+
+  const setNotes = useCallback((milestoneId, notes) => {
+    setState(prev => ({
+      ...prev,
+      [milestoneId]: { ...(prev[milestoneId] || { checked: [], notes: '' }), notes }
+    }));
+
+    if (notesDebounceRef.current[milestoneId]) {
+      clearTimeout(notesDebounceRef.current[milestoneId]);
+    }
+    setSyncStatus('syncing');
+    notesDebounceRef.current[milestoneId] = setTimeout(async () => {
+      try {
+        const { error } = await sb.from('milestone_notes').upsert({
+          almanac_id: ALMANAC_ID,
+          milestone_id: milestoneId,
+          notes,
+          updated_by: session.user.id,
+          updated_at: new Date().toISOString()
+        });
+        if (error) throw error;
+        setSyncStatus('synced');
+      } catch (e) {
+        console.warn('Notes sync failed', e);
+        setSyncStatus('error');
+      }
+    }, 500);
+  }, [session]);
+
+  const setNotesEditing = useCallback((milestoneId) => {
+    editingNotesRef.current = milestoneId;
+  }, []);
+
+  return { state, loaded, syncStatus, toggleCheck, setNotes, setNotesEditing };
 }
 
 // --- Visual primitives ----------------------------------------------------
@@ -474,7 +703,6 @@ function Chevron({ open }) {
   );
 }
 
-// --- Auto-height transition wrapper --------------------------------------
 function Collapse({ open, children }) {
   const innerRef = useRef(null);
   const [height, setHeight] = useState(open ? 'auto' : 0);
@@ -504,12 +732,12 @@ function Collapse({ open, children }) {
 }
 
 // --- Milestone card -------------------------------------------------------
-function MilestoneCard({ milestone, today, state, onPatch, isPast, expandedDefault, featured }) {
+function MilestoneCard({ milestone, today, milestoneState, onToggleCheck, onSetNotes, onNotesFocus, isPast, expandedDefault, featured }) {
   const date = parseISODate(milestone.date);
   const days = daysBetween(date, today);
-  const expanded = state?.expanded ?? expandedDefault ?? false;
-  const checked = state?.checked || [];
-  const notes = state?.notes || '';
+  const [expanded, setExpanded] = useState(!!expandedDefault);
+  const checked = milestoneState?.checked || [];
+  const notes = milestoneState?.notes || '';
   const [notesOpen, setNotesOpen] = useState(!!notes);
   const [hovered, setHovered] = useState(false);
   useEffect(() => { if (notes) setNotesOpen(true); }, [notes]);
@@ -517,11 +745,7 @@ function MilestoneCard({ milestone, today, state, onPatch, isPast, expandedDefau
   const totalCount = milestone.prep.length;
   const ws = workstreams[milestone.workstream];
 
-  const toggle = () => onPatch({ expanded: !expanded });
-  const toggleCheck = (i) => {
-    const next = checked.includes(i) ? checked.filter(x => x !== i) : [...checked, i];
-    onPatch({ checked: next });
-  };
+  const toggle = () => setExpanded(e => !e);
 
   return (
     <article
@@ -717,7 +941,7 @@ function MilestoneCard({ milestone, today, state, onPatch, isPast, expandedDefau
                   const isChecked = checked.includes(i);
                   return (
                     <li key={i} className="flex items-start gap-3">
-                      <Checkbox checked={isChecked} onChange={() => toggleCheck(i)} />
+                      <Checkbox checked={isChecked} onChange={() => onToggleCheck(milestone.id, i)} />
                       <span
                         style={{
                           fontFamily: FONT_BODY,
@@ -777,7 +1001,16 @@ function MilestoneCard({ milestone, today, state, onPatch, isPast, expandedDefau
             {(notes || notesOpen) && (
               <textarea
                 value={notes}
-                onChange={(e) => onPatch({ notes: e.target.value })}
+                onChange={(e) => onSetNotes(milestone.id, e.target.value)}
+                onFocus={(e) => {
+                  e.target.style.borderColor = GOLD + '80';
+                  onNotesFocus(milestone.id);
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = PALETTE.border;
+                  onNotesFocus(null);
+                  if (!e.target.value) setNotesOpen(false);
+                }}
                 placeholder="Marginalia, observations, telephone numbers."
                 rows={3}
                 autoFocus={notesOpen && !notes}
@@ -793,11 +1026,6 @@ function MilestoneCard({ milestone, today, state, onPatch, isPast, expandedDefau
                   padding: '10px 12px',
                   outline: 'none',
                   resize: 'vertical'
-                }}
-                onFocus={(e) => e.target.style.borderColor = GOLD + '80'}
-                onBlur={(e) => {
-                  e.target.style.borderColor = PALETTE.border;
-                  if (!e.target.value) setNotesOpen(false);
                 }}
               />
             )}
@@ -887,7 +1115,6 @@ function Countdown({ label, anchor, today, sublabel }) {
   );
 }
 
-// --- Today marker ---------------------------------------------------------
 function TodayMarker({ nextLabel, nextDays }) {
   return (
     <div
@@ -946,7 +1173,6 @@ function TodayMarker({ nextLabel, nextDays }) {
   );
 }
 
-// --- Stagger reveal -------------------------------------------------------
 function Reveal({ index, children, delay = 50 }) {
   const [shown, setShown] = useState(false);
   useEffect(() => {
@@ -966,7 +1192,6 @@ function Reveal({ index, children, delay = 50 }) {
   );
 }
 
-// --- Starfield decoration -------------------------------------------------
 function Starfield() {
   const stars = useMemo(() => {
     const arr = [];
@@ -1011,7 +1236,6 @@ function Starfield() {
   );
 }
 
-// --- Section primitives ---------------------------------------------------
 function SectionHeader({ title, subtitle }) {
   return (
     <div>
@@ -1273,39 +1497,466 @@ function MonthRail({ months, onJump }) {
   );
 }
 
-// --- Main app -------------------------------------------------------------
-function App() {
-  useGoogleFonts();
+// --- Sign-in screen -------------------------------------------------------
+function SignInScreen() {
+  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState(null);
 
-  const [persisted, setPersisted] = useState({});
-  const [loaded, setLoaded] = useState(false);
-  const [savingPulse, setSavingPulse] = useState(false);
-  const saveTimer = useRef(null);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!email) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const { error } = await sb.auth.signInWithOtp({
+        email: email.trim(),
+        options: { emailRedirectTo: window.location.origin + window.location.pathname }
+      });
+      if (error) throw error;
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.message || 'Failed to send magic link');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        backgroundColor: PALETTE.bg,
+        color: PALETTE.text,
+        fontFamily: FONT_BODY,
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '40px 20px'
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          position: 'fixed',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 0,
+          background: `
+            radial-gradient(ellipse at 20% -10%, rgba(165, 101, 138, 0.18), transparent 55%),
+            radial-gradient(ellipse at 100% 100%, rgba(229, 180, 112, 0.08), transparent 55%),
+            radial-gradient(ellipse at 50% 50%, rgba(26, 15, 26, 0) 0%, rgba(10, 6, 10, 0.5) 100%)
+          `
+        }}
+      />
+      <Starfield />
+
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 420, width: '100%' }}>
+        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <h1
+            style={{
+              fontFamily: FONT_DISPLAY,
+              fontWeight: 300,
+              fontSize: 'clamp(36px, 5vw, 52px)',
+              lineHeight: 1.05,
+              letterSpacing: '-0.02em',
+              color: PALETTE.text,
+              marginBottom: 10
+            }}
+          >
+            Critical Path <em style={{ fontWeight: 300, fontStyle: 'italic', color: GOLD }}>Almanac</em>
+          </h1>
+          <div
+            style={{
+              fontFamily: FONT_BODY,
+              fontStyle: 'italic',
+              fontSize: 14,
+              color: PALETTE.textDim,
+              letterSpacing: '0.02em'
+            }}
+          >
+            A crossing from Virginia to Ireland, charted by date.
+          </div>
+        </div>
+
+        {!submitted ? (
+          <form
+            onSubmit={submit}
+            style={{
+              backgroundColor: PALETTE.surface,
+              border: `1px solid ${PALETTE.border}`,
+              borderRadius: 6,
+              padding: '28px 26px',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+          >
+            <svg
+              aria-hidden
+              width="60" height="60" viewBox="0 0 60 60"
+              style={{ position: 'absolute', top: 12, right: 12, opacity: 0.18 }}
+            >
+              <circle cx="30" cy="30" r="22" fill="none" stroke={GOLD} strokeWidth="0.5" />
+              <circle cx="30" cy="30" r="14" fill="none" stroke={GOLD} strokeWidth="0.5" />
+              <circle cx="30" cy="30" r="2" fill={GOLD} />
+              <line x1="30" y1="2" x2="30" y2="58" stroke={GOLD} strokeWidth="0.3" />
+              <line x1="2" y1="30" x2="58" y2="30" stroke={GOLD} strokeWidth="0.3" />
+            </svg>
+
+            <div
+              style={{
+                fontFamily: FONT_BODY,
+                fontSize: 11,
+                textTransform: 'uppercase',
+                letterSpacing: '0.28em',
+                color: PALETTE.textDim,
+                marginBottom: 18
+              }}
+            >
+              Sign in
+            </div>
+
+            <label
+              htmlFor="email"
+              style={{
+                display: 'block',
+                fontFamily: FONT_BODY,
+                fontSize: 12,
+                color: PALETTE.textMuted,
+                marginBottom: 8,
+                letterSpacing: '0.05em'
+              }}
+            >
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              style={{
+                width: '100%',
+                fontFamily: FONT_BODY,
+                fontSize: 15,
+                color: PALETTE.text,
+                backgroundColor: 'rgba(26, 15, 26, 0.5)',
+                border: `1px solid ${PALETTE.border}`,
+                borderRadius: 4,
+                padding: '11px 13px',
+                outline: 'none'
+              }}
+              onFocus={(e) => e.target.style.borderColor = GOLD + '80'}
+              onBlur={(e) => e.target.style.borderColor = PALETTE.border}
+            />
+
+            {error && (
+              <div
+                style={{
+                  marginTop: 12,
+                  fontFamily: FONT_BODY,
+                  fontStyle: 'italic',
+                  fontSize: 12,
+                  color: '#C57878'
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting || !email}
+              style={{
+                marginTop: 18,
+                width: '100%',
+                fontFamily: FONT_DISPLAY,
+                fontStyle: 'italic',
+                fontWeight: 300,
+                fontSize: 15,
+                color: '#1A0F1A',
+                backgroundColor: GOLD,
+                border: `1px solid ${GOLD}`,
+                borderRadius: 4,
+                padding: '11px 16px',
+                cursor: submitting || !email ? 'not-allowed' : 'pointer',
+                opacity: submitting || !email ? 0.65 : 1,
+                letterSpacing: '0.04em',
+                transition: 'opacity 200ms ease'
+              }}
+            >
+              {submitting ? 'sending magic link…' : 'send me a magic link'}
+            </button>
+
+            <div
+              style={{
+                marginTop: 18,
+                fontFamily: FONT_BODY,
+                fontStyle: 'italic',
+                fontSize: 12,
+                color: PALETTE.textDim,
+                lineHeight: 1.55
+              }}
+            >
+              Only invited emails can sign in. If yours doesn't work, ask Augustus to add it.
+            </div>
+          </form>
+        ) : (
+          <div
+            style={{
+              backgroundColor: PALETTE.surface,
+              border: `1px solid ${PALETTE.border}`,
+              borderRadius: 6,
+              padding: '28px 26px',
+              textAlign: 'center'
+            }}
+          >
+            <div style={{ fontSize: 22, marginBottom: 10, color: GOLD }}>✦</div>
+            <div
+              style={{
+                fontFamily: FONT_DISPLAY,
+                fontStyle: 'italic',
+                fontWeight: 300,
+                fontSize: 22,
+                color: PALETTE.text,
+                marginBottom: 12,
+                letterSpacing: '-0.005em'
+              }}
+            >
+              Check your inbox.
+            </div>
+            <div
+              style={{
+                fontFamily: FONT_BODY,
+                fontSize: 14,
+                color: PALETTE.textMuted,
+                lineHeight: 1.55
+              }}
+            >
+              We sent a magic link to <span style={{ color: PALETTE.text }}>{email}</span>. Tap it from the same device to sign in.
+            </div>
+            <button
+              type="button"
+              onClick={() => { setSubmitted(false); setEmail(''); }}
+              style={{
+                marginTop: 18,
+                fontFamily: FONT_BODY,
+                fontStyle: 'italic',
+                fontSize: 12,
+                color: GOLD,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                letterSpacing: '0.04em'
+              }}
+            >
+              use a different email
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Account badge --------------------------------------------------------
+function AccountBadge({ session, syncStatus }) {
+  const [open, setOpen] = useState(false);
+  const email = session?.user?.email || '';
+  const initial = email ? email[0].toUpperCase() : '?';
+
+  const handleSignOut = async () => {
+    await sb.auth.signOut();
+  };
+
+  const statusLabel = {
+    loading: 'loading',
+    syncing: 'syncing',
+    synced: 'synced',
+    error: 'sync error'
+  }[syncStatus] || '';
+
+  const statusColor = {
+    loading: PALETTE.textDim,
+    syncing: GOLD,
+    synced: '#7BA68A',
+    error: '#C57878'
+  }[syncStatus] || PALETTE.textDim;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 14,
+        right: 18,
+        zIndex: 50,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        fontFamily: FONT_BODY
+      }}
+    >
+      {syncStatus !== 'synced' && (
+        <span
+          style={{
+            fontStyle: 'italic',
+            fontSize: 11,
+            color: statusColor,
+            letterSpacing: '0.1em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            opacity: 0.85
+          }}
+        >
+          <span
+            style={{
+              width: 5, height: 5, borderRadius: '50%',
+              backgroundColor: statusColor,
+              boxShadow: `0 0 8px ${statusColor}`,
+              animation: syncStatus === 'syncing' ? 'almanac-pulse 1.4s ease-in-out infinite' : 'none'
+            }}
+          />
+          {statusLabel}
+        </span>
+      )}
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          aria-label="Account menu"
+          style={{
+            width: 30, height: 30,
+            borderRadius: '50%',
+            backgroundColor: 'rgba(45, 31, 45, 0.85)',
+            border: `1px solid ${PALETTE.border}`,
+            color: GOLD,
+            fontFamily: FONT_DISPLAY,
+            fontStyle: 'italic',
+            fontWeight: 400,
+            fontSize: 14,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)'
+          }}
+        >
+          {initial}
+        </button>
+        {open && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 38,
+              right: 0,
+              width: 220,
+              backgroundColor: 'rgba(45, 31, 45, 0.96)',
+              border: `1px solid ${PALETTE.border}`,
+              borderRadius: 6,
+              padding: '12px 14px',
+              boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)'
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color: PALETTE.textDim,
+                textTransform: 'uppercase',
+                letterSpacing: '0.22em',
+                marginBottom: 6
+              }}
+            >
+              Signed in as
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: PALETTE.text,
+                marginBottom: 12,
+                wordBreak: 'break-all',
+                lineHeight: 1.4
+              }}
+            >
+              {email}
+            </div>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              style={{
+                fontFamily: FONT_BODY,
+                fontStyle: 'italic',
+                fontSize: 12,
+                color: GOLD,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                letterSpacing: '0.04em'
+              }}
+            >
+              sign out
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Loading screen -------------------------------------------------------
+function LoadingScreen({ label }) {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        backgroundColor: PALETTE.bg,
+        color: PALETTE.text,
+        fontFamily: FONT_BODY,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            backgroundColor: GOLD,
+            boxShadow: `0 0 12px ${GOLD}, 0 0 24px ${GOLD}88`,
+            animation: 'almanac-pulse 1.4s ease-in-out infinite',
+            margin: '0 auto 18px'
+          }}
+        />
+        <div
+          style={{
+            fontFamily: FONT_DISPLAY,
+            fontStyle: 'italic',
+            fontSize: 13,
+            color: PALETTE.textDim,
+            letterSpacing: '0.08em'
+          }}
+        >
+          {label || 'loading'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Almanac (the main authenticated view) -------------------------------
+function Almanac({ session }) {
+  const { state, loaded, syncStatus, toggleCheck, setNotes, setNotesEditing } = useAlmanacState(session);
   const today = useMemo(() => startOfDay(new Date()), []);
-
-  useEffect(() => {
-    setPersisted(loadState() || {});
-    setLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      setSavingPulse(true);
-      saveState(persisted);
-      setTimeout(() => setSavingPulse(false), 600);
-    }, 280);
-    return () => saveTimer.current && clearTimeout(saveTimer.current);
-  }, [persisted, loaded]);
-
-  const patchMilestone = useCallback((id, patch) => {
-    setPersisted(prev => ({
-      ...prev,
-      [id]: { ...(prev[id] || {}), ...patch }
-    }));
-  }, []);
 
   const sorted = useMemo(() =>
     [...milestones].sort((a, b) => parseISODate(a.date) - parseISODate(b.date))
@@ -1333,11 +1984,11 @@ function App() {
   const completedPrep = useMemo(() => {
     let n = 0;
     for (const m of milestones) {
-      const ck = persisted[m.id]?.checked || [];
+      const ck = state[m.id]?.checked || [];
       n += ck.filter(i => i < m.prep.length).length;
     }
     return n;
-  }, [persisted]);
+  }, [state]);
 
   const fullList = sorted
     .filter(m => !nextThreeIds.has(m.id))
@@ -1380,6 +2031,8 @@ function App() {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  if (!loaded) return <LoadingScreen label="loading your almanac" />;
+
   return (
     <div
       style={{
@@ -1406,35 +2059,9 @@ function App() {
       />
       <Starfield />
 
-      <div className="relative" style={{ zIndex: 1, maxWidth: 920, margin: '0 auto', padding: '56px 28px 96px' }}>
+      <AccountBadge session={session} syncStatus={syncStatus} />
 
-        <div
-          style={{
-            position: 'fixed',
-            top: 18,
-            right: 22,
-            fontFamily: FONT_BODY,
-            fontStyle: 'italic',
-            fontSize: 11,
-            color: GOLD,
-            opacity: savingPulse ? 0.9 : 0,
-            transition: 'opacity 360ms ease',
-            letterSpacing: '0.1em',
-            zIndex: 50,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6
-          }}
-        >
-          <span
-            style={{
-              width: 5, height: 5, borderRadius: '50%',
-              backgroundColor: GOLD,
-              boxShadow: `0 0 8px ${GOLD}`
-            }}
-          />
-          saving
-        </div>
+      <div className="relative" style={{ zIndex: 1, maxWidth: 920, margin: '0 auto', padding: '56px 28px 96px' }}>
 
         <Reveal index={0}>
           <header style={{ marginBottom: 56 }}>
@@ -1523,8 +2150,10 @@ function App() {
                     <MilestoneCard
                       milestone={m}
                       today={today}
-                      state={persisted[m.id]}
-                      onPatch={(p) => patchMilestone(m.id, p)}
+                      milestoneState={state[m.id]}
+                      onToggleCheck={toggleCheck}
+                      onSetNotes={setNotes}
+                      onNotesFocus={setNotesEditing}
                       isPast={false}
                       expandedDefault={i === 0}
                       featured={true}
@@ -1587,8 +2216,10 @@ function App() {
                           key={m.id}
                           milestone={m}
                           today={today}
-                          state={persisted[m.id]}
-                          onPatch={(p) => patchMilestone(m.id, p)}
+                          milestoneState={state[m.id]}
+                          onToggleCheck={toggleCheck}
+                          onSetNotes={setNotes}
+                          onNotesFocus={setNotesEditing}
                           isPast={it.isPast}
                           featured={false}
                         />
@@ -1630,6 +2261,15 @@ function App() {
       `}</style>
     </div>
   );
+}
+
+// --- App root -------------------------------------------------------------
+function App() {
+  useGoogleFonts();
+  const { session, loading } = useAuth();
+  if (loading) return <LoadingScreen label="opening the almanac" />;
+  if (!session) return <SignInScreen />;
+  return <Almanac session={session} />;
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
