@@ -1497,28 +1497,43 @@ function MonthRail({ months, onJump }) {
   );
 }
 
-// --- Sign-in screen -------------------------------------------------------
-function SignInScreen() {
-  const [email, setEmail] = useState('');
+// --- Passcode screen ------------------------------------------------------
+function PasscodeScreen() {
+  const [passcode, setPasscode] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!email) return;
+    if (!passcode) return;
     setError(null);
     setSubmitting(true);
+
     try {
-      const { error } = await sb.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: window.location.origin + window.location.pathname }
+      // Sign in anonymously to get an auth.uid() we can attach membership to
+      const { data: signInData, error: signInError } = await sb.auth.signInAnonymously();
+      if (signInError) throw signInError;
+
+      // Verify the passcode and add this anon user to the almanac
+      const { data: joined, error: rpcError } = await sb.rpc('join_almanac_with_passcode', {
+        input_passcode: passcode
       });
-      if (error) throw error;
-      setSubmitted(true);
+      if (rpcError) throw rpcError;
+
+      if (!joined) {
+        // Wrong passcode — clean up the orphan anon session
+        await sb.auth.signOut();
+        setError('Incorrect passcode. Please try again.');
+        setSubmitting(false);
+        return;
+      }
+      // Success — App will re-render to Almanac on the next auth/membership check.
+      // Don't set submitting=false here; the screen unmounts on success.
     } catch (err) {
-      setError(err.message || 'Failed to send magic link');
-    } finally {
+      console.error('Passcode submit failed', err);
+      // If we created a session before the failure, clean it up
+      await sb.auth.signOut().catch(() => {});
+      setError(err.message || 'Failed to sign in. Please try again.');
       setSubmitting(false);
     }
   };
@@ -1581,183 +1596,130 @@ function SignInScreen() {
           </div>
         </div>
 
-        {!submitted ? (
-          <form
-            onSubmit={submit}
-            style={{
-              backgroundColor: PALETTE.surface,
-              border: `1px solid ${PALETTE.border}`,
-              borderRadius: 6,
-              padding: '28px 26px',
-              position: 'relative',
-              overflow: 'hidden'
-            }}
+        <form
+          onSubmit={submit}
+          style={{
+            backgroundColor: PALETTE.surface,
+            border: `1px solid ${PALETTE.border}`,
+            borderRadius: 6,
+            padding: '28px 26px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          <svg
+            aria-hidden
+            width="60" height="60" viewBox="0 0 60 60"
+            style={{ position: 'absolute', top: 12, right: 12, opacity: 0.18 }}
           >
-            <svg
-              aria-hidden
-              width="60" height="60" viewBox="0 0 60 60"
-              style={{ position: 'absolute', top: 12, right: 12, opacity: 0.18 }}
-            >
-              <circle cx="30" cy="30" r="22" fill="none" stroke={GOLD} strokeWidth="0.5" />
-              <circle cx="30" cy="30" r="14" fill="none" stroke={GOLD} strokeWidth="0.5" />
-              <circle cx="30" cy="30" r="2" fill={GOLD} />
-              <line x1="30" y1="2" x2="30" y2="58" stroke={GOLD} strokeWidth="0.3" />
-              <line x1="2" y1="30" x2="58" y2="30" stroke={GOLD} strokeWidth="0.3" />
-            </svg>
+            <circle cx="30" cy="30" r="22" fill="none" stroke={GOLD} strokeWidth="0.5" />
+            <circle cx="30" cy="30" r="14" fill="none" stroke={GOLD} strokeWidth="0.5" />
+            <circle cx="30" cy="30" r="2" fill={GOLD} />
+            <line x1="30" y1="2" x2="30" y2="58" stroke={GOLD} strokeWidth="0.3" />
+            <line x1="2" y1="30" x2="58" y2="30" stroke={GOLD} strokeWidth="0.3" />
+          </svg>
 
-            <div
-              style={{
-                fontFamily: FONT_BODY,
-                fontSize: 11,
-                textTransform: 'uppercase',
-                letterSpacing: '0.28em',
-                color: PALETTE.textDim,
-                marginBottom: 18
-              }}
-            >
-              Sign in
-            </div>
-
-            <label
-              htmlFor="email"
-              style={{
-                display: 'block',
-                fontFamily: FONT_BODY,
-                fontSize: 12,
-                color: PALETTE.textMuted,
-                marginBottom: 8,
-                letterSpacing: '0.05em'
-              }}
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              style={{
-                width: '100%',
-                fontFamily: FONT_BODY,
-                fontSize: 15,
-                color: PALETTE.text,
-                backgroundColor: 'rgba(26, 15, 26, 0.5)',
-                border: `1px solid ${PALETTE.border}`,
-                borderRadius: 4,
-                padding: '11px 13px',
-                outline: 'none'
-              }}
-              onFocus={(e) => e.target.style.borderColor = GOLD + '80'}
-              onBlur={(e) => e.target.style.borderColor = PALETTE.border}
-            />
-
-            {error && (
-              <div
-                style={{
-                  marginTop: 12,
-                  fontFamily: FONT_BODY,
-                  fontStyle: 'italic',
-                  fontSize: 12,
-                  color: '#C57878'
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting || !email}
-              style={{
-                marginTop: 18,
-                width: '100%',
-                fontFamily: FONT_DISPLAY,
-                fontStyle: 'italic',
-                fontWeight: 300,
-                fontSize: 15,
-                color: '#1A0F1A',
-                backgroundColor: GOLD,
-                border: `1px solid ${GOLD}`,
-                borderRadius: 4,
-                padding: '11px 16px',
-                cursor: submitting || !email ? 'not-allowed' : 'pointer',
-                opacity: submitting || !email ? 0.65 : 1,
-                letterSpacing: '0.04em',
-                transition: 'opacity 200ms ease'
-              }}
-            >
-              {submitting ? 'sending magic link…' : 'send me a magic link'}
-            </button>
-
-            <div
-              style={{
-                marginTop: 18,
-                fontFamily: FONT_BODY,
-                fontStyle: 'italic',
-                fontSize: 12,
-                color: PALETTE.textDim,
-                lineHeight: 1.55
-              }}
-            >
-              Only invited emails can sign in. If yours doesn't work, ask Augustus to add it.
-            </div>
-          </form>
-        ) : (
           <div
             style={{
-              backgroundColor: PALETTE.surface,
-              border: `1px solid ${PALETTE.border}`,
-              borderRadius: 6,
-              padding: '28px 26px',
-              textAlign: 'center'
+              fontFamily: FONT_BODY,
+              fontSize: 11,
+              textTransform: 'uppercase',
+              letterSpacing: '0.28em',
+              color: PALETTE.textDim,
+              marginBottom: 18
             }}
           >
-            <div style={{ fontSize: 22, marginBottom: 10, color: GOLD }}>✦</div>
+            Enter passcode
+          </div>
+
+          <label
+            htmlFor="passcode"
+            style={{
+              display: 'block',
+              fontFamily: FONT_BODY,
+              fontSize: 12,
+              color: PALETTE.textMuted,
+              marginBottom: 8,
+              letterSpacing: '0.05em'
+            }}
+          >
+            Passcode
+          </label>
+          <input
+            id="passcode"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={passcode}
+            onChange={(e) => setPasscode(e.target.value)}
+            placeholder="••••••"
+            style={{
+              width: '100%',
+              fontFamily: FONT_BODY,
+              fontSize: 15,
+              color: PALETTE.text,
+              backgroundColor: 'rgba(26, 15, 26, 0.5)',
+              border: `1px solid ${PALETTE.border}`,
+              borderRadius: 4,
+              padding: '11px 13px',
+              outline: 'none',
+              letterSpacing: '0.1em'
+            }}
+            onFocus={(e) => e.target.style.borderColor = GOLD + '80'}
+            onBlur={(e) => e.target.style.borderColor = PALETTE.border}
+          />
+
+          {error && (
             <div
               style={{
-                fontFamily: FONT_DISPLAY,
-                fontStyle: 'italic',
-                fontWeight: 300,
-                fontSize: 22,
-                color: PALETTE.text,
-                marginBottom: 12,
-                letterSpacing: '-0.005em'
-              }}
-            >
-              Check your inbox.
-            </div>
-            <div
-              style={{
-                fontFamily: FONT_BODY,
-                fontSize: 14,
-                color: PALETTE.textMuted,
-                lineHeight: 1.55
-              }}
-            >
-              We sent a magic link to <span style={{ color: PALETTE.text }}>{email}</span>. Tap it from the same device to sign in.
-            </div>
-            <button
-              type="button"
-              onClick={() => { setSubmitted(false); setEmail(''); }}
-              style={{
-                marginTop: 18,
+                marginTop: 12,
                 fontFamily: FONT_BODY,
                 fontStyle: 'italic',
                 fontSize: 12,
-                color: GOLD,
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                letterSpacing: '0.04em'
+                color: '#C57878'
               }}
             >
-              use a different email
-            </button>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting || !passcode}
+            style={{
+              marginTop: 18,
+              width: '100%',
+              fontFamily: FONT_DISPLAY,
+              fontStyle: 'italic',
+              fontWeight: 300,
+              fontSize: 15,
+              color: '#1A0F1A',
+              backgroundColor: GOLD,
+              border: `1px solid ${GOLD}`,
+              borderRadius: 4,
+              padding: '11px 16px',
+              cursor: submitting || !passcode ? 'not-allowed' : 'pointer',
+              opacity: submitting || !passcode ? 0.65 : 1,
+              letterSpacing: '0.04em',
+              transition: 'opacity 200ms ease'
+            }}
+          >
+            {submitting ? 'unlocking…' : 'unlock the almanac'}
+          </button>
+
+          <div
+            style={{
+              marginTop: 18,
+              fontFamily: FONT_BODY,
+              fontStyle: 'italic',
+              fontSize: 12,
+              color: PALETTE.textDim,
+              lineHeight: 1.55
+            }}
+          >
+            Shared with three travellers. If you don't have the passcode, ask Augustus.
           </div>
-        )}
+        </form>
       </div>
     </div>
   );
@@ -1766,8 +1728,6 @@ function SignInScreen() {
 // --- Account badge --------------------------------------------------------
 function AccountBadge({ session, syncStatus }) {
   const [open, setOpen] = useState(false);
-  const email = session?.user?.email || '';
-  const initial = email ? email[0].toUpperCase() : '?';
 
   const handleSignOut = async () => {
     await sb.auth.signOut();
@@ -1835,10 +1795,6 @@ function AccountBadge({ session, syncStatus }) {
             backgroundColor: 'rgba(45, 31, 45, 0.85)',
             border: `1px solid ${PALETTE.border}`,
             color: GOLD,
-            fontFamily: FONT_DISPLAY,
-            fontStyle: 'italic',
-            fontWeight: 400,
-            fontSize: 14,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -1847,7 +1803,9 @@ function AccountBadge({ session, syncStatus }) {
             WebkitBackdropFilter: 'blur(8px)'
           }}
         >
-          {initial}
+          <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden>
+            <path d="M5 7 V5 a3 3 0 0 1 6 0 V7 M3 7 H13 V13 H3 Z" fill="none" stroke={GOLD} strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" />
+          </svg>
         </button>
         {open && (
           <div
@@ -1855,7 +1813,7 @@ function AccountBadge({ session, syncStatus }) {
               position: 'absolute',
               top: 38,
               right: 0,
-              width: 220,
+              width: 200,
               backgroundColor: 'rgba(45, 31, 45, 0.96)',
               border: `1px solid ${PALETTE.border}`,
               borderRadius: 6,
@@ -1874,18 +1832,18 @@ function AccountBadge({ session, syncStatus }) {
                 marginBottom: 6
               }}
             >
-              Signed in as
+              This Almanac
             </div>
             <div
               style={{
                 fontSize: 13,
-                color: PALETTE.text,
+                fontStyle: 'italic',
+                color: PALETTE.textMuted,
                 marginBottom: 12,
-                wordBreak: 'break-all',
                 lineHeight: 1.4
               }}
             >
-              {email}
+              Unlocked on this device
             </div>
             <button
               type="button"
@@ -1902,7 +1860,7 @@ function AccountBadge({ session, syncStatus }) {
                 letterSpacing: '0.04em'
               }}
             >
-              sign out
+              lock the almanac
             </button>
           </div>
         )}
@@ -2263,12 +2221,47 @@ function Almanac({ session }) {
   );
 }
 
+// --- Membership check -----------------------------------------------------
+function useMembership(session) {
+  const [status, setStatus] = useState('checking'); // 'checking' | 'member' | 'not-member'
+
+  useEffect(() => {
+    if (!session) {
+      setStatus('not-member');
+      return;
+    }
+    let alive = true;
+    setStatus('checking');
+    sb.from('almanac_members')
+      .select('almanac_id')
+      .eq('almanac_id', ALMANAC_ID)
+      .eq('user_id', session.user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) {
+          console.warn('Membership check failed', error);
+          setStatus('not-member');
+          return;
+        }
+        setStatus(data ? 'member' : 'not-member');
+      });
+    return () => { alive = false; };
+  }, [session?.user?.id]);
+
+  return status;
+}
+
 // --- App root -------------------------------------------------------------
 function App() {
   useGoogleFonts();
   const { session, loading } = useAuth();
-  if (loading) return <LoadingScreen label="opening the almanac" />;
-  if (!session) return <SignInScreen />;
+  const membership = useMembership(session);
+
+  if (loading || (session && membership === 'checking')) {
+    return <LoadingScreen label="opening the almanac" />;
+  }
+  if (!session || membership !== 'member') return <PasscodeScreen />;
   return <Almanac session={session} />;
 }
 
